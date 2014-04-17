@@ -1,14 +1,26 @@
 #include <pangolin/pangolin.h>
 #include <pangolin/glsl.h>
 #include <pangolin/image_load.h>
+#include <memory>
+
+#ifdef HAVE_OCULUS
+#include <OVR.h>
+#endif
+
+namespace std{ template<typename T, typename ...Args>
+std::unique_ptr<T> make_unique( Args&& ...args ) {
+    return std::unique_ptr<T>( new T( std::forward<Args>(args)... ) );
+}}
 
 const char* shadertoy_header =
+        "#version 120\n"
         "uniform vec3      iResolution;           // viewport resolution (in pixels)\n"
         "uniform float     iGlobalTime;           // shader playback time (in seconds)\n"
-        "uniform float     iChannelTime[4];       // channel playback time (in seconds)\n"
-        "uniform vec3      iChannelResolution[4]; // channel resolution (in pixels)\n"
         "uniform vec4      iMouse;                // mouse pixel coords. xy: current (if MLB down), zw: click\n"
-        "uniform vec4      iDate;                 // (year, month, day, time in s)\n";
+        "uniform mat4      iT_bh;                 // Camera to World transform\n"
+        "uniform vec4      iDate;                 // (year, month, day, time in s)\n"
+        "uniform float     iChannelTime[4];       // channel playback time (in seconds)\n"
+        "uniform vec3      iChannelResolution[4]; // channel resolution (in pixels)\n";
 
 struct ShaderToyHandler : public pangolin::Handler
 {
@@ -93,16 +105,44 @@ int main( int argc, char** argv )
     prog.AddShader( pangolin::GlSlFragmentShader, glsl_buffer.str() );
     prog.Link();
 
+#ifdef HAVE_OCULUS
+    OVR::System::Init();
+    OVR::Ptr<OVR::DeviceManager> pManager = *OVR::DeviceManager::Create();
+    std::unique_ptr<OVR::SensorFusion> pFusionResult;
+    OVR::Ptr<OVR::HMDDevice> pHMD;
+    OVR::Ptr<OVR::SensorDevice> pSensor;
+    if(pManager) {
+        pHMD = *pManager->EnumerateDevices<OVR::HMDDevice>().CreateDevice();
+        if (pHMD) {
+            pSensor = *pHMD->GetSensor();
+            if (pSensor) {
+                pFusionResult = std::make_unique<OVR::SensorFusion>();
+                pFusionResult->AttachToSensor(pSensor);
+            }
+        }
+    }
+#endif
+
+    // head to body transform
+    pangolin::OpenGlMatrix T_bh;
+    T_bh.SetIdentity();
+
     float iGlobalTime = 0;
     while( !pangolin::ShouldQuit() )
     {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+#ifdef HAVE_OCULUS
+        const OVR::Quatf q = pFusionResult->GetOrientation();
+        T_bh = OVR::Matrix4f(q);
+#endif
 
         glColor3f(1.0f,1.0f,1.0f);
         prog.Bind();
         prog.SetUniform("iResolution", (float)pangolin::DisplayBase().v.w, (float)pangolin::DisplayBase().v.h, 1.0);
         prog.SetUniform("iGlobalTime", iGlobalTime );
         prog.SetUniform("iMouse", handler.x, handler.y, (float)handler.button_state, 0.0f);
+        prog.SetUniform("iT_bh", T_bh);
 
         glEnableClientState(GL_VERTEX_ARRAY);
         glVertexPointer(2, GL_FLOAT, 0, sq_vert);
