@@ -12,15 +12,19 @@ const char* shadertoy_header =
 
 struct ShaderToyHandler : public pangolin::Handler
 {
-    void Mouse(pangolin::View&, pangolin::MouseButton button, int x, int y, bool pressed, int button_state) {
-        this->x = x;
-        this->y = y;
+    void Mouse(pangolin::View& v, pangolin::MouseButton button, int x, int y, bool pressed, int button_state) {
+        this->x = x; this->y = y;
         this->button_state = button_state;
     }
 
     void MouseMotion(pangolin::View&, int x, int y, int button_state) {
-        this->x = x;
-        this->y = y;
+        this->x = x; this->y = y;
+        this->button_state = button_state;
+    }
+
+    void Special(pangolin::View&, pangolin::InputSpecial inType, float x, float y, float p1, float p2, float p3, float p4, int button_state)
+    {
+        this->x = x; this->y = y;
         this->button_state = button_state;
     }
 
@@ -53,8 +57,10 @@ int main( int argc, char** argv )
     }
 
     pangolin::CreateWindowAndBind("Main",640,480);
+    pangolin::View view;
+    pangolin::DisplayBase().AddDisplay(view);
     ShaderToyHandler handler;
-    pangolin::DisplayBase().SetHandler(&handler);
+    view.SetHandler(&handler);
 
     // GLSL Source, starting with header
     std::stringstream glsl_buffer;
@@ -96,7 +102,7 @@ int main( int argc, char** argv )
         prog.Bind();
         prog.SetUniform("iResolution", (float)pangolin::DisplayBase().v.w, (float)pangolin::DisplayBase().v.h, 1.0);
         prog.SetUniform("iGlobalTime", iGlobalTime );
-        prog.SetUniform("iMouse", handler.x, handler.y, 0.0f, 0.0f);
+        prog.SetUniform("iMouse", handler.x, handler.y, (float)handler.button_state, 0.0f);
 
         glEnableClientState(GL_VERTEX_ARRAY);
         glVertexPointer(2, GL_FLOAT, 0, sq_vert);
