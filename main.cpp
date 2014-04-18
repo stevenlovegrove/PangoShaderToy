@@ -133,8 +133,9 @@ int main( int argc, char** argv )
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 #ifdef HAVE_OCULUS
-        const OVR::Quatf q = pFusionResult->GetOrientation();
-        T_bh = OVR::Matrix4f(q);
+        if(pFusionResult) {
+            T_bh = OVR::Matrix4f(pFusionResult->GetOrientation());
+        }
 #endif
 
         glColor3f(1.0f,1.0f,1.0f);
